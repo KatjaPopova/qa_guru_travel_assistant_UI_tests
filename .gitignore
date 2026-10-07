@@ -25,3 +25,4 @@ Thumbs.db
 
 # Исключить результаты тестов Allure (сырые данные)
 allure-results/
+allure-report/
