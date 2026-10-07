@@ -3,6 +3,8 @@ from selenium.webdriver.common.by import By
 from selenium.webdriver.common.keys import Keys
 from selenium.webdriver.support import expected_conditions as EC
 from selenium.webdriver.support.ui import WebDriverWait
+from selenium.common.exceptions import StaleElementReferenceException
+
 
 
 class TravelAssistantPage:
@@ -64,15 +66,23 @@ class TravelAssistantPage:
 
     def _wait_message_contains(self, text: str):
         def _predicate(driver):
-            elements = driver.find_elements(*self.MESSAGE_TEXTS)
-            return any(text in el.text for el in elements)
+            try:
+                elements = driver.find_elements(*self.MESSAGE_TEXTS)
+                texts = [el.text.strip() for el in elements]
+                return any(text in message for message in texts)
+            except StaleElementReferenceException:
+                return False
 
         return self.wait.until(_predicate)
 
     def _wait_message_equals(self, text: str):
         def _predicate(driver):
-            elements = driver.find_elements(*self.MESSAGE_TEXTS)
-            return any(el.text.strip() == text for el in elements)
+            try:
+                elements = driver.find_elements(*self.MESSAGE_TEXTS)
+                texts = [el.text.strip() for el in elements]
+                return any(message == text for message in texts)
+            except StaleElementReferenceException:
+                return False
 
         return self.wait.until(_predicate)
 

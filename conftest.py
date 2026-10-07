@@ -5,7 +5,6 @@ import pytest
 from dotenv import load_dotenv
 from selenium import webdriver
 from selenium.webdriver.chrome.options import Options as ChromeOptions
-from selenium.webdriver.firefox.options import Options as FirefoxOptions
 
 from pages.main_page import MainPage
 from pages.travel_assistant_page import TravelAssistantPage
