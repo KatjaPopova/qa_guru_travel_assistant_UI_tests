@@ -1,10 +1,17 @@
-import allure
+import os
+from urllib.parse import quote
+
 import pytest
+from dotenv import load_dotenv
 from selenium import webdriver
-from selenium.webdriver.chrome.options import Options
+from selenium.webdriver.chrome.options import Options as ChromeOptions
+from selenium.webdriver.firefox.options import Options as FirefoxOptions
 
 from pages.main_page import MainPage
 from pages.travel_assistant_page import TravelAssistantPage
+from utils import attach
+
+load_dotenv()
 
 
 def pytest_addoption(parser):
@@ -16,19 +23,88 @@ def pytest_addoption(parser):
     )
 
     parser.addoption(
+        "--remote-url",
+        action="store",
+        default="https://selenoid.qa.guru/wd/hub",
+        help="Адрес Selenoid",
+    )
+
+    parser.addoption(
+        "--remote",
+        action="store",
+        choices=["true", "false"],
+        default="false",
+        help="Запускать тесты удаленно через Selenoid",
+    )
+
+    parser.addoption(
+        "--browser",
+        action="store",
+        choices=["chrome", "firefox"],
+        default="chrome",
+        help="Браузер: chrome или firefox",
+    )
+
+    parser.addoption(
+        "--browser-version",
+        action="store",
+        default="latest",
+        help="Версия браузера",
+    )
+
+    parser.addoption(
         "--headless",
-        action="store_true",
-        help="Run browser in headless mode"
+        action="store",
+        choices=["true", "false"],
+        default="false",
+        help="Headless-режим: true или false",
+    )
+
+    parser.addoption(
+        "--window-size",
+        action="store",
+        default="1920x1080",
+        help="Разрешение экрана, например 1920x1080",
     )
 
 
-@pytest.fixture
-def driver(request):
-    options = Options()
-    options.add_argument("--window-size=1920,1080")
+def get_window_size(value):
+    try:
+        width, height = value.lower().split("x")
+        return int(width), int(height)
+    except ValueError:
+        raise pytest.UsageError(
+            "--window-size нужно указать в формате 1920x1080"
+        )
 
+
+@pytest.fixture(scope="function")
+def driver(request):
+    login = os.getenv("LOGIN")
+    password = os.getenv("PASSWORD")
+
+    if not login:
+        pytest.fail("В файле .env не указана переменная LOGIN")
+
+    if not password:
+        pytest.fail("В файле .env не указана переменная PASSWORD")
+
+    base_url = request.config.getoption("--base-url")
+    remote_mode = request.config.getoption("--remote")
+    browser_name = request.config.getoption("--browser")
+    browser_version = request.config.getoption("--browser-version")
+    headless = request.config.getoption("--headless")
+    window_size = request.config.getoption("--window-size")
+
+    width, height = get_window_size(window_size)
+
+    options = ChromeOptions()
+    options.add_argument(f"--window-size={width},{height}")
     options.add_argument("--use-fake-ui-for-media-stream")
     options.add_argument("--use-fake-device-for-media-stream")
+
+    if headless == "true":
+        options.add_argument("--headless=new")
 
     prefs = {
         "profile.default_content_setting_values.media_stream_mic": 1,
@@ -38,19 +114,48 @@ def driver(request):
     }
     options.add_experimental_option("prefs", prefs)
 
-    if request.config.getoption("--headless"):
-        options.add_argument("--headless=new")
+    if remote_mode == "true":
+        remote_url = request.config.getoption("--remote-url")
 
-    browser = webdriver.Chrome(options=options)
-    yield browser
+        options.set_capability("browserName", browser_name)
+        options.set_capability("browserVersion", browser_version)
+        options.set_capability(
+            "selenoid:options",
+            {
+                "enableVNC": True,
+                "enableVideo": True,
+                "screenResolution": f"{width}x{height}x24",
+            },
+        )
 
-    allure.attach(
-        browser.get_screenshot_as_png(),
-        name="final_screenshot",
-        attachment_type=allure.attachment_type.PNG
-    )
+        encoded_login = quote(login, safe="")
+        encoded_password = quote(password, safe="")
 
-    browser.quit()
+        command_executor = remote_url.replace(
+            "://",
+            f"://{encoded_login}:{encoded_password}@",
+            1,
+        )
+
+        driver = webdriver.Remote(
+            command_executor=command_executor,
+            options=options,
+        )
+    else:
+        driver = webdriver.Chrome(options=options)
+
+    driver.base_url = base_url
+
+    yield driver
+
+    try:
+        attach.add_screenshot(driver)
+        attach.add_html(driver)
+        attach.add_logs(driver)
+        if remote_mode == "true":
+            attach.add_video(driver)
+    finally:
+        driver.quit()
 
 
 @pytest.fixture

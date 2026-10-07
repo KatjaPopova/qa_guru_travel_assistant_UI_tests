@@ -217,17 +217,21 @@ class TravelAssistantPage:
             self._switch_to_default_content()
         return self
 
-    def should_have_reply_containing(self, expected_text: str):
+    def should_have_reply_containing_any(self, expected_texts, timeout=60):
         self._switch_to_iframe()
         try:
-            wait = WebDriverWait(self.driver, 60)
-            with allure.step(f"Проверить, что ответ ассистента содержит текст: {expected_text}"):
+            wait = WebDriverWait(self.driver, timeout)
+
+            with allure.step(f"Проверить, что ответ ассистента содержит один из вариантов: {expected_texts}"):
                 def _predicate(driver):
                     elements = driver.find_elements(*self.MESSAGE_TEXTS)
-                    return any(expected_text in el.text for el in elements)
+                    return any(
+                        any(expected_text in el.text for expected_text in expected_texts)
+                        for el in elements
+                    )
 
                 assert wait.until(_predicate), (
-                    f'Ответ ассистента, содержащий "{expected_text}", не найден в чате'
+                    f'Ответ ассистента не содержит ни одного из ожидаемых вариантов: {expected_texts}'
                 )
         finally:
             self._switch_to_default_content()

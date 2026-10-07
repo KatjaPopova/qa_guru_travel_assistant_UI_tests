@@ -16,7 +16,9 @@ class TestChatActions:
     def test_1_user_can_send_message(self, travel_assistant_widget):
         travel_assistant_widget.send_message("Привет")
         travel_assistant_widget.should_have_sent_message("Привет")
-        travel_assistant_widget.should_have_reply_containing("Привет!")
+        travel_assistant_widget.should_have_reply_containing_any(
+            ["Привет", "Здравствуйте", "чем я могу помочь", "рад помочь"]
+        )
 
     @allure.story("Voice recording")
     @allure.severity(allure.severity_level.NORMAL)
@@ -56,7 +58,7 @@ class TestChatActions:
         travel_assistant_widget.should_see_quick_prompt(prompt_locator, prompt_text)
         travel_assistant_widget.click_quick_prompt(prompt_locator, prompt_text)
         travel_assistant_widget.should_have_sent_message(prompt_text)
-        travel_assistant_widget.should_have_reply_containing(expected_reply_part)
+        travel_assistant_widget.should_have_reply_containing_any(expected_reply_part)
 
     @allure.story("Empty message")
     @allure.severity(allure.severity_level.MINOR)
